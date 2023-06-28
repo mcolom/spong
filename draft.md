@@ -36,6 +36,31 @@ Una vez establecido el canal de comunicación, el servidor y los clientes interc
 
 Cada comando es una secuencia de bytes con este formato C<num_comando><parámetros_del_comando>, donde "C" es el carácter ASCII de la letra C mayúscula y <num_comando> es un byte sin signo (entre 0 y 255). Para facilitar que el MSX pueda decodificar los comandos, las palabras de 16 bits se codifican en _little endian_, es decir, el LSB primero.Por ejemplo, la palabra 0x1234 se codificarían como 0x34, 0x12. 
 
-Comandos del servidor al cliente:
-* num_comando = 1, <parámetros_del_comando> = cadena ASCIIZ. Indica a un cliente que su conexión ha sido rechazada, junto con un mensaje explicativo. Por ejemplo, que el servidor ha alcanzado su número máximo de jugadores en la sala de espera.
+Comandos:
+
+### Formato incorrecto
+El cliente o servidor indica a la otra parte que el formato del comando no ha sido reconocido.
+- <num_comando> = 1
+
+### Conexión rechazada
+Indica a un cliente que su conexión ha sido rechazada, junto con un mensaje explicativo. Por ejemplo, que el servidor ha alcanzado su número máximo de jugadores en la sala de espera.
+- <num_comando> = 2
+- <motivo> = cadena ASCIIZ. 
+
+### Inicio de partida
+El servidor notifica a los clientes que comienza una nueva partida
+- <num_comando> = 3
+
+### Fin de partida
+- <num_comando> = 4
+- <ganador> = cadena ASCIIZ con el nick del ganador.
+El servidor notifica a los clientes que comienza una nueva partida
+
+### Inicilización jugador
+El servidor inicializa un nuevo jugador después de que entre en la partida
+- <num_comando> = 5
+- <ID> = ID que se le asigna al jugador (byte)
+- <portería> = arriba (1), abajo (2), derecha (3), izquierda (4)
+- <posición> = byte con la posición del jugador. La posición 0 ecorresponde a arriba y a la izquierda.
+
 
