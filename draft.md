@@ -41,15 +41,16 @@ La posición de un jugador se codifica en un byte sin signo, ya que los jugadore
 Comandos:
 
 ### Ping
-El cliente envía un ping al servidor
+El cliente envía un ping al servidor.
 - \<comando\> = 1
-- \<num\>: un byte sin signo
+- \<num\> = un byte sin signo
 
 Respuesta: <num+1>
 
 ### Formato incorrecto
 El cliente o servidor indica a la otra parte que el formato del comando no ha sido reconocido.
 - \<comando\> = 2
+- \<mensaje\> = cadena ASCIIZ con el mensaje de error.
 
 ### Conexión rechazada
 El servidor indica a un cliente que su conexión ha sido rechazada, junto con un mensaje explicativo. Por ejemplo, que el servidor ha alcanzado su número máximo de jugadores en la sala de espera.
@@ -59,7 +60,7 @@ El servidor indica a un cliente que su conexión ha sido rechazada, junto con un
 ### Inicio de partida
 El servidor notifica a un cliente que ha sido admitido en la partida y le coloca en una portería.
 - \<comando\> = 4
-- \<pos\> = caracter ASCII que indica la portería del jugador: "U" (arriba), "D" (abajo), "R" (derecha) o "L" (izquierda).
+- \<pos\> = caracter ASCII que indica la portería del jugador: "U" (arriba), "D" (abajo), "L" (izquierda) o "R" (derecha).
 
 ### Fin de partida
 El servidor notifica a los clientes que la partida ha terminado y da el nick del ganador.
@@ -67,16 +68,16 @@ El servidor notifica a los clientes que la partida ha terminado y da el nick del
 - \<ganador\> = cadena ASCIIZ con el nick del ganador.
 
 ### Actualización de las posiciones de los jugadores
-El servidor notifica a un cliente de la posición de los jugadores en la partida
+El servidor notifica a un cliente de la posición de los jugadores en la partida.
 - \<comando\> = 6
-- \<U\>\<D\>\<R\>\<L\>: las posiciones de los jugadores, en este orden: arriba (U), abajo (D), derecha (R) o izquierda (L). En el caso de que uno jugador haya sido eliminado, el valor correspondiente a su posición es 255.
+- \<U\>\<D\>\<L\>\<R\> = las posiciones de los jugadores, en este orden: arriba (U), abajo (D), izquierda (L) o derecha (R). En el caso de que uno jugador haya sido eliminado, el valor correspondiente a su posición es 255.
 
 ### Consulta de la cola de espera
-El cliente pide al servidor la lista de jugadores en espera
+El cliente pide al servidor la lista de jugadores en espera.
 - \<comando\> = 7
 
 Respuesta:
-\<lista_de_nicks\>: lista de nicks en la cola de espera. Cada nick está terminado con un byte 0. El terminador de la lista es otro cero.
+\<lista_de_nicks\> = lista de nicks en la cola de espera. Cada nick está terminado con un byte 0. El terminador de la lista es otro cero.
 
 ### Consulta de los jugadores de la partida
 El cliente pide al servidor la lista de los jugadores activos en la partida.
@@ -84,4 +85,14 @@ La respuesta es una lista de nick con una longitud entre 0 y 4.
 - \<comando\> = 8
   
 Respuesta:
-\<lista_de_nicks\>: lista de nicks activos en la partida. El orden indica la portería:  arriba (U), abajo (D), derecha (R) o izquierda (L). Cada nick está terminado con un byte 0. El terminador de la lista es otro cero.
+\<lista_de_nicks\> = lista de nicks activos en la partida. El orden indica la portería:  arriba, abajo, izquierda y derecha. Cada nick está terminado con un byte 0. El terminador de la lista es otro cero.
+
+### Actualización de las posiciones de las pelotas
+El servidor notifica a un cliente la posición de las pelotas.
+- \<comando\> = 9
+- \<bolas\> = lista de posiciones de pelotas <X><Y>, donde X e Y son las coordenadas horizontales y verticales en la pantalla. El terminador de la lista es el par <255><255>.
+
+### Notificación golpe
+El servidor notifica a un cliente que un jugador ha golpeado una pelota. El cliente puede utilizar esta notificación para reproducir sonidos o efectos gráficos.
+- \<comando\> = 10
+- \<P\> = portería del jugador que ha golpeado la pelota. Es un carácter entre "U" (arriba), "D" (abajo), "L" (izquierda) o "R" (derecha).
