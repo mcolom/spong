@@ -26,7 +26,7 @@ from pygame.locals import *
 
 # Screen size
 # See https://www.msx.org/wiki/Screen_Modes_Description for MSX modes
-SCALE = 10
+SCALE = 7
 
 SCREEN_WIDTH = 256 * SCALE
 SCREEN_HEIGHT = 212 * SCALE
@@ -89,10 +89,55 @@ class PaddleUp(Paddle):
         self.rect.move_ip(self.x + 1*SCALE, 0)
         if (self.rect.left > SCREEN_WIDTH):
             self.rect.left = 0
+
+class PaddleDown(Paddle):
+    """
+    The DOWN paddle
+    """
+    def __init__(self):
+        super().__init__() 
+        self.image = pygame.image.load("assets/paddle_down.png")
+        self.rect = self.image.get_rect()
+        self.rect.center = (250, SCREEN_HEIGHT - 50)
+    
+    def move(self):
+        self.rect.move_ip(self.x + 1*SCALE, 0)
+        if (self.rect.left > SCREEN_WIDTH):
+            self.rect.left = 0
+
+class PaddleRight(Paddle):
+    """
+    The RIGHT paddle
+    """
+    def __init__(self):
+        super().__init__() 
+        self.image = pygame.image.load("assets/paddle_right.png")
+        self.rect = self.image.get_rect()
+        self.rect.center = (SCREEN_WIDTH - 50, SCREEN_WIDTH - 50)
+    
+    def move(self):
+        self.rect.move_ip(0, self.x + 1*SCALE)
+        if (self.rect.top > SCREEN_WIDTH):
+            self.rect.top = 0
+
+class PaddleLeft(Paddle):
+    """
+    The LEFT paddle
+    """
+    def __init__(self):
+        super().__init__() 
+        self.image = pygame.image.load("assets/paddle_left.png")
+        self.rect = self.image.get_rect()
+        self.rect.center = (50, 200)
+    
+    def move(self):
+        self.rect.move_ip(0, self.x + 1*SCALE)
+        if (self.rect.top > SCREEN_WIDTH):
+            self.rect.top = 0
             
     
 
-print("Sotano Pong PyGame client")
+print("Sótano Pong PyGame client")
 print()
 
 FPS = 60
@@ -100,13 +145,16 @@ FramePerSec = pygame.time.Clock()
 
 # Display initialization
 pygame.init()
-pygame.display.set_caption('Sotano Pong')
+pygame.display.set_caption('Sótano Pong')
 DISPLAYSURF = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 
 
 # The sprites
 ball = Ball()
 paddle_up = PaddleUp()
+paddle_right = PaddleRight()
+paddle_down = PaddleDown()
+paddle_left = PaddleLeft()
 
 # Main loop
 do_exit = False
@@ -117,11 +165,24 @@ while not do_exit:
 
     paddle_up.update()
     paddle_up.move()
+    #
+    paddle_right.update()
+    paddle_right.move()
+    #
+    paddle_down.update()
+    paddle_down.move()
+    #
+    paddle_left.update()
+    paddle_left.move()
     
     DISPLAYSURF.fill(BLACK)
     
     ball.draw(DISPLAYSURF)
+
     paddle_up.draw(DISPLAYSURF)
+    paddle_right.draw(DISPLAYSURF)
+    paddle_down.draw(DISPLAYSURF)
+    paddle_left.draw(DISPLAYSURF)
 
     pygame.display.update()
     FramePerSec.tick(FPS)
