@@ -17,6 +17,7 @@ Sotano Pong server
 #import os
 import random
 import socket
+import select
 import time
 import threading
 import sys
@@ -34,26 +35,53 @@ class connectionThread(threading.Thread):
         self.conn = conn
         self.addr = addr
         self.on_data_available_handler = on_data_available_handler
+        self.socket_is_connected = True
 
     def run(self):
         """
-        Thread loop.
+        Thread loop, until the connection is closed.
         It blocks until data is available and notifies with an event.
         """
         #print (f"Starting {self}, conn={self.conn}, addr={self.addr}, on_data_available_handler={self.on_data_available_handler}")
         #print(f"Thread {self} run, connected by {self.addr}")
         
-        while True:
-            data = self.conn.recv(1024)
-            # Fire notification event
-            if self.on_data_available_handler:
-                self.on_data_available_handler(data)
+        while self.socket_is_connected:
+            try:
+                # We use select to avoid that the thread get blocked in
+                # recv when we ask to finish.
+                readable, _, _ = select.select((self.conn,), (), (), 1)
+                if readable:
+                    data = self.conn.recv(1024)
+                    if not data:
+                        self.socket_is_connected = False
+                        break                
+                    # Fire notification event
+                    if self.on_data_available_handler:
+                        self.on_data_available_handler(data)
+            except OSError:
+                self.socket_is_connected = False
                 
     def send_data(self, data):
         """
         Send data
         """
-        self.conn.sendall(data)
+        try:
+            self.conn.sendall(data)
+        except OSError:
+            self.socket_is_connected = False
+    
+    def is_connected(self):
+        """
+        Check if the socked is still connected
+        """
+        return self.socket_is_connected
+        
+    def close_connection(self):
+        """
+        Close the connection
+        """
+        self.conn.close()
+        self.socket_is_connected = False
 
         
 
@@ -64,12 +92,14 @@ class ConnectionListenerThread(threading.Thread):
     It'll fire an event when a new connection is established.
     """
     def __init__(self, HOST, PORT, new_connection_handler=None):
-        #print("New ConnectionListenerThread")
+        print("New ConnectionListenerThread")
         threading.Thread.__init__(self)
         
         self.threads = set()        
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.new_connection_handler = new_connection_handler
+        self.must_finish = False
+        self.conn = None
 
         # Bind the socket
         # Increment the port if already used. This is handy for developing.
@@ -90,19 +120,36 @@ class ConnectionListenerThread(threading.Thread):
 
 
     def run(self):
-        #print (f"Starting ConnectionListenerThread")
+        #print(f"Starting ConnectionListenerThread")
         self.s.listen()
+        
+        while not self.must_finish:
+            # We use select to avoid that the thread can't be finished
+            readable, _, _ = select.select((self.s,), (), (), 1)
+            if self.s in readable:
+                self.conn, addr = self.s.accept()
+                print(f"CLT Accepted: conn={self.conn}")
 
-        while True:
-            conn, addr = self.s.accept()
-            #print("CLT Accepted")
-
-            thread = connectionThread(conn, addr)
-            self.threads.add(thread)
-            
-            # Fire the new_connection_handler event
-            if self.new_connection_handler:
-                self.new_connection_handler(thread)
+                thread = connectionThread(self.conn, addr)
+                self.threads.add(thread)
+                
+                # Fire the new_connection_handler event
+                if self.new_connection_handler:
+                    self.new_connection_handler(thread)
+        
+        print("CLT closing all")
+        self.cleanup()
+        if self.conn:
+            self.conn.close()
+    
+    def finish(self):
+        """
+        Notify the thread that it needs to finish
+        """
+        if self.conn:
+            self.conn.close()
+        print("FINISH")
+        self.must_finish = True
 
     def cleanup(self):
         '''
@@ -114,6 +161,8 @@ class ConnectionListenerThread(threading.Thread):
                 remove_set.add(th)
         for th in remove_set:
             print(f"Thread {th} is not alive, removing...")
+            th.close_connection()
+            th.join()
             self.threads.remove(th)
 
 
@@ -137,6 +186,7 @@ class Player():
         # Close the connection with control-C in telnet.
         # This is just for debugging, and not at all a clean closing!
         if data == b'\xff\xfb\x06':
+            print(f"reee: {self.thread.conn}")
             self.thread.conn.close()
 
 
@@ -160,7 +210,12 @@ PORT = 1234
 listener_thread = ConnectionListenerThread(HOST, PORT, new_connection_handler=new_connection_handler)
 listener_thread.start()
 
-while True:
-    listener_thread.cleanup()
-    print(f"I have {listener_thread.get_num_threads()} threads")
-    time.sleep(10)
+try:
+    while True:
+        listener_thread.cleanup()
+        print(f"I have {listener_thread.get_num_threads()} threads")
+        time.sleep(10)
+except KeyboardInterrupt:
+    listener_thread.finish()
+
+#listener_thread.join()
