@@ -22,10 +22,11 @@ import sys
 
 # telnet 127.0.0.1 1234
 
-HOST = "localhost"
-PORT = 1234
 
-class connectionThread (threading.Thread):
+class connectionThread(threading.Thread):
+    """
+    An established-connection thread
+    """
     def __init__(self, conn, addr):
         print(f"New thread with conn={conn} and addr={addr}")
         threading.Thread.__init__(self)
@@ -33,11 +34,11 @@ class connectionThread (threading.Thread):
         self.addr = addr
 
     def run(self):
-        print (f"Starting {self}, conn={conn}, addr={addr}")
+        print (f"Starting {self}, conn={self.conn}, addr={self.addr}")
     
         #print_time(self.name, self.counter, 5)
         
-        print(f"Thread {self} run, connected by {addr}")
+        print(f"Thread {self} run, connected by {self.addr}")
         with self.conn:
             for i in range(5):
                 print(f"Thread {self}, message #{i}")
@@ -48,47 +49,79 @@ class connectionThread (threading.Thread):
         
         print(f"Thread {self} exiting")
 
+class ConnectionListenerThread(threading.Thread):
+    """
+    A thread to handle connections.
+    It's useful to free the main thread from blocking.
+    """
+    def __init__(self, HOST, PORT):
+        print("New ConnectionListenerThread")
+        threading.Thread.__init__(self)
+        
+        self.threads = set()        
+        self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        # Bind the socket
+        # Increment the port if already used. This is handy for developing.
+        bind_error = True
+        while bind_error:
+            try:
+                self.s.bind((HOST, PORT))
+                bind_error = False
+            except OSError:
+                PORT += 1
+        print(f"Bind, port {PORT}")
+    
+    def get_num_threads(self):
+        """
+        Get the number of threads
+        """
+        return len(self.threads)
+
+
+    def run(self):
+        print (f"Starting ConnectionListenerThread")
+        print("Listening...")
+        self.s.listen()
+
+        while True:
+            print(f"CLT Accepting..., s={self.s}")
+            conn, addr = self.s.accept()
+            print("CLT Accepted")
+
+            thread = connectionThread(conn, addr)
+            self.threads.add(thread)
+            thread.start()
+
+    def cleanup(self):
+        '''
+        Remove dead threads
+        '''
+        remove_set = set()
+        for th in self.threads:
+            if not th.is_alive():
+                remove_set.add(th)
+        for th in remove_set:
+            print(f"Thread {th} is not alive, removing...")
+            self.threads.remove(th)
 
 ###################################################
 
 print("Welcome to the Sotano Pong server!")
 print()
 
-threads = set()
 
-with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:    
-    # Bind the socket
-    # Increment the port if already used. This is handy for developing.
-    bind_error = True
-    while bind_error:
-        try:
-            s.bind((HOST, PORT))
-            bind_error = False
-        except OSError:
-            PORT += 1
-    print(f"Bind, port {PORT}")
+HOST = "localhost"
+PORT = 1234
     
-    print("Listening...")
-    s.listen()
+listener_thread = ConnectionListenerThread(HOST, PORT)
+listener_thread.start()
+
+while True:
+    print("Hi from the server, I'm awake")
+    print(f"I have {listener_thread.get_num_threads()} threads")
     
-    # We have a new connection.
-    # Let's create a thread for it
-    while True:
-        print("Accepting...")
-        conn, addr = s.accept()
-        print("Accepted")
-        
-        print(f"I have {len(threads)} threads")
-        
-        thread = connectionThread(conn, addr)
-        threads.add(thread)
-        thread.start()
-        
-        # Remove dead threads
-        remove_set = set()
-        for th in threads:
-            if not th.is_alive():
-                remove_set.add(th)
-        for th in remove_set:
-            print(f"Thread {th} is not alive, removing...")
-            threads.remove(th)
+    listener_thread.cleanup()
+    
+    print("I'm going to sleep")
+    time.sleep(10)
