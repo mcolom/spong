@@ -15,6 +15,7 @@ Sotano Pong server
 """
 
 #import os
+import random
 import socket
 import time
 import threading
@@ -27,39 +28,48 @@ class connectionThread(threading.Thread):
     """
     An established-connection thread
     """
-    def __init__(self, conn, addr):
-        print(f"New thread with conn={conn} and addr={addr}")
+    def __init__(self, conn, addr, on_data_available_handler=None):
+        #print(f"New thread with conn={conn}, addr={addr}, on_data_available_handler={on_data_available_handler}")
         threading.Thread.__init__(self)
         self.conn = conn
         self.addr = addr
+        self.on_data_available_handler = on_data_available_handler
 
     def run(self):
-        print (f"Starting {self}, conn={self.conn}, addr={self.addr}")
-    
-        #print_time(self.name, self.counter, 5)
+        """
+        Thread loop.
+        It blocks until data is available and notifies with an event.
+        """
+        #print (f"Starting {self}, conn={self.conn}, addr={self.addr}, on_data_available_handler={self.on_data_available_handler}")
+        #print(f"Thread {self} run, connected by {self.addr}")
         
-        print(f"Thread {self} run, connected by {self.addr}")
-        with self.conn:
-            for i in range(5):
-                print(f"Thread {self}, message #{i}")
-                data = self.conn.recv(1024)
-                if not data:
-                    break
-                self.conn.sendall(data)
+        while True:
+            data = self.conn.recv(1024)
+            # Fire notification event
+            if self.on_data_available_handler:
+                self.on_data_available_handler(data)
+                
+    def send_data(self, data):
+        """
+        Send data
+        """
+        self.conn.sendall(data)
+
         
-        print(f"Thread {self} exiting")
 
 class ConnectionListenerThread(threading.Thread):
     """
     A thread to handle connections.
     It's useful to free the main thread from blocking.
+    It'll fire an event when a new connection is established.
     """
-    def __init__(self, HOST, PORT):
-        print("New ConnectionListenerThread")
+    def __init__(self, HOST, PORT, new_connection_handler=None):
+        #print("New ConnectionListenerThread")
         threading.Thread.__init__(self)
         
         self.threads = set()        
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.new_connection_handler = new_connection_handler
 
         # Bind the socket
         # Increment the port if already used. This is handy for developing.
@@ -80,18 +90,19 @@ class ConnectionListenerThread(threading.Thread):
 
 
     def run(self):
-        print (f"Starting ConnectionListenerThread")
-        print("Listening...")
+        #print (f"Starting ConnectionListenerThread")
         self.s.listen()
 
         while True:
-            print(f"CLT Accepting..., s={self.s}")
             conn, addr = self.s.accept()
-            print("CLT Accepted")
+            #print("CLT Accepted")
 
             thread = connectionThread(conn, addr)
             self.threads.add(thread)
-            thread.start()
+            
+            # Fire the new_connection_handler event
+            if self.new_connection_handler:
+                self.new_connection_handler(thread)
 
     def cleanup(self):
         '''
@@ -105,7 +116,39 @@ class ConnectionListenerThread(threading.Thread):
             print(f"Thread {th} is not alive, removing...")
             self.threads.remove(th)
 
+
+class Player():
+    """
+    A player.
+    """
+    def __init__(self, name, thread):
+        print(f"New Player, name = {name}, thread={thread}")
+        self.name = name
+        self.thread = thread
+        
+        self.thread.on_data_available_handler = self.data_received
+        self.thread.start()
+    
+    def data_received(self, data):
+        print(f"Player data_received: {data}")
+        # Echo
+        self.thread.send_data(data)
+        
+        # Close the connection with control-C in telnet.
+        # This is just for debugging, and not at all a clean closing!
+        if data == b'\xff\xfb\x06':
+            self.thread.conn.close()
+
+
 ###################################################
+
+def new_connection_handler(thread):
+    print("new_connection_handler")
+    
+    # Create a player and give its newly created communication thread.
+    # The thread is started by the player, not here.
+    player = Player("Player" + str(int(100*random. random())), thread)
+
 
 print("Welcome to the Sotano Pong server!")
 print()
@@ -114,14 +157,10 @@ print()
 HOST = "localhost"
 PORT = 1234
     
-listener_thread = ConnectionListenerThread(HOST, PORT)
+listener_thread = ConnectionListenerThread(HOST, PORT, new_connection_handler=new_connection_handler)
 listener_thread.start()
 
 while True:
-    print("Hi from the server, I'm awake")
-    print(f"I have {listener_thread.get_num_threads()} threads")
-    
     listener_thread.cleanup()
-    
-    print("I'm going to sleep")
+    print(f"I have {listener_thread.get_num_threads()} threads")
     time.sleep(10)
