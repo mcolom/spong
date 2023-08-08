@@ -136,9 +136,34 @@ class PaddleLeft(Paddle):
             self.rect.top = 0
             
     
+##############################################
+
+SERVER = "localhost"
+PORT = 1234
 
 print("Sótano Pong PyGame client")
 print()
+
+name = f"Player_{int(100*random. random())}"
+
+# Connect to the server
+conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+try:
+    conn.connect((SERVER, PORT))
+except ConnectionRefusedError:
+    print(f"Error: connection to the server {SERVER}:{PORT} refused!")
+    sys.exit(0)
+
+# Send a ping
+msg = bytes((67, 1, 0xAB))
+conn.send(msg)
+
+# Receive the answer
+ans = conn.recv(1024)
+print(ans)
+
+sys.exit(0)
 
 FPS = 60
 FramePerSec = pygame.time.Clock()

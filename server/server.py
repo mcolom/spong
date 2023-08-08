@@ -180,8 +180,19 @@ class Player():
     
     def data_received(self, data):
         print(f"Player data_received: {data}")
-        # Echo
-        self.thread.send_data(data)
+        
+        # Is it a command (it begins with byte 'C')
+        if data[0] == ord(b'C'):
+            print("It's command")
+            command = data[1]
+            if command == 1: # Ping
+                print("Ping")
+                num = data[2]
+                self.thread.send_data((bytes((num+1,))))
+                
+        else:
+            # Echo
+            self.thread.send_data(data)
         
         # Close the connection with control-C in telnet.
         # This is just for debugging, and not at all a clean closing!
