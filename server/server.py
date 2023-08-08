@@ -178,18 +178,41 @@ class Player():
         self.thread.on_data_available_handler = self.data_received
         self.thread.start()
     
+    def process_ping(self, data):
+        """
+        Process ping
+        """
+        num = data[2]
+        self.thread.send_data((bytes((num+1,))))
+    
+    def process_change_name(self, data):
+        """
+        Change player's name
+        """
+        if data[-1] != 0:
+            self.thread.send_data((bytes((1,)))) # Error
+            return
+
+        name = data[2:-1].decode()
+        print(f"New name: {name}")
+        self.name = name
+        self.thread.send_data((bytes((0,)))) # OK
+        
+        
     def data_received(self, data):
         print(f"Player data_received: {data}")
         
         # Is it a command (it begins with byte 'C')
         if data[0] == ord(b'C'):
-            print("It's command")
             command = data[1]
             if command == 1: # Ping
                 print("Ping")
-                num = data[2]
-                self.thread.send_data((bytes((num+1,))))
-                
+                self.process_ping(data)
+            elif command == 2: # Change name
+                print("Change name")
+                self.process_change_name(data)
+            else:
+                print(f"Command not implement: {command}")
         else:
             # Echo
             self.thread.send_data(data)

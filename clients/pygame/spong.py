@@ -139,7 +139,7 @@ class PaddleLeft(Paddle):
 ##############################################
 
 SERVER = "localhost"
-PORT = 1234
+PORT = 1235
 
 print("Sótano Pong PyGame client")
 print()
@@ -162,6 +162,18 @@ conn.send(msg)
 # Receive the answer
 ans = conn.recv(1024)
 print(ans)
+
+# Change our name
+name = "tibur"
+msg = b"C" + bytes((2,)) + bytes(name, encoding="utf8") + bytes((0, ))
+conn.send(msg)
+
+ans = conn.recv(1024)
+print(ans)
+
+
+
+
 
 sys.exit(0)
 
