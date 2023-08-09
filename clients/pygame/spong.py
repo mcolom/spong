@@ -135,11 +135,32 @@ class PaddleLeft(Paddle):
         if (self.rect.top > SCREEN_WIDTH):
             self.rect.top = 0
             
+
+
+def connect_to_server(SERVER, PORT):
+    """
+    Connect to the server
+    """
+    conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    connected = False
+    for _ in range(10):
+        try:
+            conn.connect((SERVER, PORT))
+            connected = True
+            break
+        except ConnectionRefusedError:
+            PORT += 1
+    
+    if not connected:
+        raise ConnectionRefusedError
+    return conn, PORT
+
     
 ##############################################
 
 SERVER = "localhost"
-PORT = 1235
+PORT = 1234
 
 print("Sótano Pong PyGame client")
 print()
@@ -147,14 +168,14 @@ print()
 name = f"Player_{int(100*random. random())}"
 
 # Connect to the server
-conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
 try:
-    conn.connect((SERVER, PORT))
+    conn, PORT = connect_to_server(SERVER, PORT)
 except ConnectionRefusedError:
-    print(f"Error: connection to the server {SERVER}:{PORT} refused!")
+    print(f"Couldn't connect to the server {SERVER}!")
     sys.exit(0)
 
+print(f"Connected to the server {SERVER}:{PORT}")
+    
 # Send a ping
 msg = bytes((67, 1, 0xAB))
 conn.send(msg)
