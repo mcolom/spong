@@ -256,24 +256,33 @@ class Player():
 
 ###################################################
 
+g_lock = threading.Lock()
+
 players = []
 
 def add_new_player(name, thread, players):
     """
     Create and add new player
     """
+    global g_lock
+    
     player = Player("Player" + str(int(100*random. random())), thread)
-    players.append(player)
+    
+    with g_lock:
+        players.append(player)
     return player
 
 def remove_player(player, players):
     """
     Finish and remove a player
     """
+    global g_lock
+
     exists = player in players
     if exists:
         player.finish()
-        players.remove(player)
+        with g_lock:
+            players.remove(player)
     return exists
 
 def cleanup(players):
