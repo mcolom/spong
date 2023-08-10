@@ -36,16 +36,26 @@ class connectionThread(threading.Thread):
         self.addr = addr
         self.on_data_available_handler = on_data_available_handler
         self.socket_is_connected = True
+        self.must_finish = False
+
+    def finish(self):
+        """
+        Notify the thread that it needs to finish
+        """
+        if self.conn:
+            self.conn.close()
+        print("FINISH connectionThread")
+        self.must_finish = True
 
     def run(self):
         """
-        Thread loop, until the connection is closed.
-        It blocks until data is available and notifies with an event.
+        Thread loop, until the connection is closed or asked to finish.
+        It blocks until new data is available to read and notifies with an event.
         """
         #print (f"Starting {self}, conn={self.conn}, addr={self.addr}, on_data_available_handler={self.on_data_available_handler}")
         #print(f"Thread {self} run, connected by {self.addr}")
         
-        while self.socket_is_connected:
+        while not self.must_finish and self.socket_is_connected:
             try:
                 # We use select to avoid that the thread get blocked in
                 # recv when we ask to finish.
@@ -91,7 +101,7 @@ class ConnectionListenerThread(threading.Thread):
     It's useful to free the main thread from blocking.
     It'll fire an event when a new connection is established.
     """
-    def __init__(self, HOST, PORT, new_connection_handler=None):
+    def __init__(self, HOST, PORT, players, new_connection_handler=None):
         print("New ConnectionListenerThread")
         threading.Thread.__init__(self)
         
@@ -99,6 +109,7 @@ class ConnectionListenerThread(threading.Thread):
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.new_connection_handler = new_connection_handler
         self.must_finish = False
+        self.players = players
         self.conn = None
 
         # Bind the socket
@@ -128,14 +139,14 @@ class ConnectionListenerThread(threading.Thread):
             readable, _, _ = select.select((self.s,), (), (), 1)
             if self.s in readable:
                 self.conn, addr = self.s.accept()
-                print(f"CLT Accepted: conn={self.conn}")
+                print(f"CLT accepted: conn={self.conn}")
 
                 thread = connectionThread(self.conn, addr)
                 self.threads.add(thread)
                 
                 # Fire the new_connection_handler event
                 if self.new_connection_handler:
-                    self.new_connection_handler(thread)
+                    self.new_connection_handler(thread, self.players)
         
         print("CLT closing all")
         self.cleanup()
@@ -148,7 +159,7 @@ class ConnectionListenerThread(threading.Thread):
         """
         if self.conn:
             self.conn.close()
-        print("FINISH")
+        print("CLT finish")
         self.must_finish = True
 
     def cleanup(self):
@@ -178,6 +189,26 @@ class Player():
         self.thread.on_data_available_handler = self.data_received
         self.thread.start()
     
+    def is_connected(self):
+        """
+        Check if the player is connected
+        """
+        return self.thread.is_connected()
+    
+    def finish(self):
+        """
+        Ask the player to finish
+        """
+        # Finish its thread
+        if self.thread:
+            self.thread.finish()
+    
+    def get_name(self):
+        """
+        Name getter
+        """
+        return self.name
+    
     def process_ping(self, data):
         """
         Process ping
@@ -194,7 +225,7 @@ class Player():
             return
 
         name = data[2:-1].decode()
-        print(f"New name: {name}")
+        print(f"Player '{self.name}' changed its name to '{name}'")
         self.name = name
         self.thread.send_data((bytes((0,)))) # OK
         
@@ -220,18 +251,49 @@ class Player():
         # Close the connection with control-C in telnet.
         # This is just for debugging, and not at all a clean closing!
         if data == b'\xff\xfb\x06':
-            print(f"reee: {self.thread.conn}")
             self.thread.conn.close()
 
 
 ###################################################
 
-def new_connection_handler(thread):
+players = []
+
+def add_new_player(name, thread, players):
+    """
+    Create and add new player
+    """
+    player = Player("Player" + str(int(100*random. random())), thread)
+    players.append(player)
+    return player
+
+def remove_player(player, players):
+    """
+    Finish and remove a player
+    """
+    exists = player in players
+    if exists:
+        player.finish()
+        players.remove(player)
+    return exists
+
+def cleanup(players):
+    """
+    Cleanup (disconnected players, etc.)
+    """
+    # Remove disconnected players
+    all_players = players.copy()
+    for player in all_players:
+        if not player.is_connected():
+            print(f"Cleanup removing disconnected player {player.get_name()}")
+            remove_player(player, players)
+
+def new_connection_handler(thread, players):
     print("new_connection_handler")
     
     # Create a player and give its newly created communication thread.
     # The thread is started by the player, not here.
-    player = Player("Player" + str(int(100*random. random())), thread)
+    name = str(int(100*random. random()))
+    player = add_new_player(name, thread, players)
 
 
 print("Welcome to the Sotano Pong server!")
@@ -241,14 +303,29 @@ print()
 HOST = "localhost"
 PORT = 1234
     
-listener_thread = ConnectionListenerThread(HOST, PORT, new_connection_handler=new_connection_handler)
+listener_thread = ConnectionListenerThread(HOST, PORT, players, new_connection_handler=new_connection_handler)
 listener_thread.start()
+
+i = 0
 
 try:
     while True:
         listener_thread.cleanup()
-        print(f"I have {listener_thread.get_num_threads()} threads")
-        time.sleep(10)
+        
+        if i == 5:
+            if len(players) > 0:
+                player = players[0]
+                print(f"Finishing player '{player.get_name()}'")
+                #remove_player(player, players) # Let's leave cleanup(.) do this
+                player.finish()
+            i = 0
+        
+        cleanup(players)
+        print(f"I have {listener_thread.get_num_threads()} threads, {len(players)} players")
+
+        time.sleep(5)
+        
+        i += 1
 except KeyboardInterrupt:
     listener_thread.finish()
 
