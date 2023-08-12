@@ -228,7 +228,24 @@ class Player():
         print(f"Player '{self.name}' changed its name to '{name}'")
         self.name = name
         self.thread.send_data((bytes((0,)))) # OK
-        
+
+    def process_text_message(self, data):
+        """
+        Process a text message received from the client
+        """
+        if data[-1] != 0:
+            self.thread.send_data((bytes((1,)))) # Error
+            return
+
+        text = data[2:-1].decode()
+        print(f"Message from player '{self.name}': '{text}'")
+
+    def text_message_to_client(self, text):
+        """
+        Send a text message to the client
+        """
+        data = b"C" + bytes((12,)) + bytes(text, encoding="utf8") + b'\x00'
+        self.thread.send_data(data)
         
     def data_received(self, data):
         print(f"Player data_received: {data}")
@@ -242,6 +259,9 @@ class Player():
             elif command == 2: # Change name
                 print("Change name")
                 self.process_change_name(data)
+            elif command == 12: # Free text message
+                print("Text message")
+                self.process_text_message(data)
             else:
                 print(f"Command not implement: {command}")
         else:
@@ -303,6 +323,9 @@ def new_connection_handler(thread, players):
     # The thread is started by the player, not here.
     name = str(int(100*random. random()))
     player = add_new_player(name, thread, players)
+    
+    # Send a free text message to the client
+    player.text_message_to_client(f"Hi there, {player.name}!")
 
 
 print("Welcome to the Sotano Pong server!")

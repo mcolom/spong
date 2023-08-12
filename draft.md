@@ -103,3 +103,8 @@ El servidor notifica a un cliente la posición de las pelotas.
 El servidor notifica a un cliente que un jugador ha golpeado una pelota. El cliente puede utilizar esta notificación para reproducir sonidos o efectos gráficos.
 - \<comando\> = 11
 - \<P\> = portería del jugador que ha golpeado la pelota. Es un carácter entre "U" (arriba), "D" (abajo), "L" (izquierda) o "R" (derecha).
+
+### Mensaje libre de texto
+El cliente o el servidor envían un mensaje de texto libre. Se utiliza básicamente para depuración.
+- \<comando\> = 12
+- \<msg\> = mensaje de texto ASCIIZ.

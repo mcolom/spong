@@ -189,10 +189,14 @@ name = "tibur"
 msg = b"C" + bytes((2,)) + bytes(name, encoding="utf8") + bytes((0, ))
 conn.send(msg)
 
+# Send a free text message to the server
+msg = b"C" + bytes((12,)) + b"Hi from client " + b"'" + bytes(name, encoding="utf8") + b"'" + b'\x00'
+conn.send(msg)
+
+# Receive the answer.
+# To be removed: this is just to confirm we receive the free-text message from the server!
 ans = conn.recv(1024)
 print(ans)
-
-
 
 
 
