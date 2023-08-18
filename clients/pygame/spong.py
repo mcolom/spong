@@ -19,10 +19,20 @@ Sotano Pong PyGame client
 import socket
 import time
 import random
+import os
 import sys
 
 import pygame
 from pygame.locals import *
+
+# Import the command definitions
+# We've put them in a separate file.
+# The same files is shared by both server and clients
+ROOT = os.path.abspath(os.curdir)
+commands_py_dir = os.path.abspath(os.path.join(ROOT, "../../"))
+sys.path.append(commands_py_dir)
+from commands import SPongCommands
+
 
 # Screen size
 # See https://www.msx.org/wiki/Screen_Modes_Description for MSX modes
@@ -177,28 +187,27 @@ except ConnectionRefusedError:
 print(f"Connected to the server {SERVER}:{PORT}")
     
 # Send a ping
-msg = bytes((67, 1, 0xAB))
-conn.send(msg)
-
-# Receive the answer
-ans = conn.recv(1024)
-print(ans)
+data = b"C" + bytes((SPongCommands.PING.value, )) +b'\xAB'
+conn.send(data)
 
 # Change our name
 name = "tibur"
-msg = b"C" + bytes((2,)) + bytes(name, encoding="utf8") + bytes((0, ))
-conn.send(msg)
+data = b"C" + bytes((SPongCommands.PLAYER_RENAME.value,)) + bytes(name, encoding="utf8") + b'\x00'
+conn.send(data)
 
 # Send a free text message to the server
-msg = b"C" + bytes((12,)) + b"Hi from client " + b"'" + bytes(name, encoding="utf8") + b"'" + b'\x00'
-conn.send(msg)
+data = b"C" + bytes((SPongCommands.DEBUG_TEXT_MESSAGE.value, )) + b"Hi from client " + b"'" + bytes(name, encoding="utf8") + b"'" + b'\x00'
+conn.send(data)
 
-# Receive the answer.
-# To be removed: this is just to confirm we receive the free-text message from the server!
-ans = conn.recv(1024)
-print(ans)
-
-
+# To be removed: this is just to confirm we receive an answer from the server!
+try:
+    ans = conn.recv(1024)
+    while ans != b'': # loop until connection closed
+        # Receive the answers
+        ans = conn.recv(1024)
+        print(f"Answer: {ans}")
+except ConnectionResetError:
+    pass
 
 sys.exit(0)
 

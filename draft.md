@@ -40,71 +40,59 @@ La posición de un jugador se codifica en un byte sin signo, ya que los jugadore
 
 Comandos:
 
-### Ping
+### PING
 El cliente envía un ping al servidor.
-- \<comando\> = 1
 - \<num\> = un byte sin signo
 
-Respuesta: <num+1>
+### PONG
+El servidor envía un pong al servidor, en respuesta a su ping. La respuesta contiene el mismo número enviado en el ping.
+- \<num\> = un byte sin signo
 
-### Cambio de nombre
+### PLAYER\_RENAME
 El cliente solicita al servidor un cambio de nombre. Generalmente se utiliza al principio.
-- \<comando\> = 2
 - \<mensaje\> = cadena ASCIIZ con el nombre, con un máximo de 8 caracteres.
 
-Respuesta: 0 si se acepta o cualquier otro número si no es posible el cambio de nombre.
-
-### Formato incorrecto
+### BAD\_FORMAT
 El cliente o servidor indica a la otra parte que el formato del comando no ha sido reconocido.
-- \<comando\> = 3
 - \<mensaje\> = cadena ASCIIZ con el mensaje de error.
 
-### Conexión rechazada
+### CONN\_REFUSED
 El servidor indica a un cliente que su conexión ha sido rechazada, junto con un mensaje explicativo. Por ejemplo, que el servidor ha alcanzado su número máximo de jugadores en la sala de espera.
-- \<comando\> = 4
 - \<motivo\> = cadena ASCIIZ. 
 
-### Inicio de partida
+### GAME\_START
 El servidor notifica a un cliente que ha sido admitido en la partida y le coloca en una portería.
-- \<comando\> = 5
 - \<pos\> = caracter ASCII que indica la portería del jugador: "U" (arriba), "D" (abajo), "L" (izquierda) o "R" (derecha).
 
-### Fin de partida
+### GAME\_OVER
 El servidor notifica a los clientes que la partida ha terminado y da el nick del ganador.
-- \<comando\> = 6
 - \<ganador\> = cadena ASCIIZ con el nick del ganador.
 
-### Actualización de las posiciones de los jugadores
+### PLAYERS\_UPDATE
 El servidor notifica a un cliente de la posición de los jugadores en la partida.
-- \<comando\> = 7
 - \<U\>\<D\>\<L\>\<R\> = las posiciones de los jugadores, en este orden: arriba (U), abajo (D), izquierda (L) o derecha (R). En el caso de que uno jugador haya sido eliminado, el valor correspondiente a su posición es 255.
 
-### Consulta de la cola de espera
-El cliente pide al servidor la lista de jugadores en espera.
-- \<comando\> = 8
+### GET\_PLAYERS\_QUEUE
+El cliente pide al servidor la lista de jugadores en la cola de espera.
 
 Respuesta:
 \<lista_de_nicks\> = lista de nicks en la cola de espera. Cada nick está terminado con un byte 0. El terminador de la lista es otro cero.
 
-### Consulta de los jugadores de la partida
+### WHOS\_PLAYING
 El cliente pide al servidor la lista de los jugadores activos en la partida.
-La respuesta es una lista de nick con una longitud entre 0 y 4.
-- \<comando\> = 9
+La respuesta es una lista de nicks con una longitud entre 0 y 4.
   
 Respuesta:
 \<lista_de_nicks\> = lista de nicks activos en la partida. El orden indica la portería:  arriba, abajo, izquierda y derecha. Cada nick está terminado con un byte 0. El terminador de la lista es otro cero.
 
-### Actualización de las posiciones de las pelotas
+### BALLS\_UPDATE
 El servidor notifica a un cliente la posición de las pelotas.
-- \<comando\> = 10
 - \<bolas\> = lista de posiciones de pelotas <X><Y>, donde X e Y son las coordenadas horizontales y verticales en la pantalla. El terminador de la lista es el par <255><255>.
 
-### Notificación golpe
+### HIT\_NOTIFICATION
 El servidor notifica a un cliente que un jugador ha golpeado una pelota. El cliente puede utilizar esta notificación para reproducir sonidos o efectos gráficos.
-- \<comando\> = 11
 - \<P\> = portería del jugador que ha golpeado la pelota. Es un carácter entre "U" (arriba), "D" (abajo), "L" (izquierda) o "R" (derecha).
 
-### Mensaje libre de texto
+### DEBUG\_TEXT\_MESSAGE
 El cliente o el servidor envían un mensaje de texto libre. Se utiliza básicamente para depuración.
-- \<comando\> = 12
 - \<msg\> = mensaje de texto ASCIIZ.

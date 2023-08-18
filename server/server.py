@@ -14,7 +14,9 @@
 Sotano Pong server
 """
 
-#import os
+# telnet 127.0.0.1 1234
+
+import os
 import random
 import socket
 import select
@@ -22,7 +24,13 @@ import time
 import threading
 import sys
 
-# telnet 127.0.0.1 1234
+# Import the command definitions
+# We've put them in a separate file.
+# The same files is shared by both server and clients
+ROOT = os.path.abspath(os.curdir)
+commands_py_dir = os.path.abspath(os.path.join(ROOT, ".."))
+sys.path.append(commands_py_dir)
+from commands import SPongCommands
 
 
 class connectionThread(threading.Thread):
@@ -76,6 +84,7 @@ class connectionThread(threading.Thread):
         Send data
         """
         try:
+            print(f"Server sending: {data}")
             self.conn.sendall(data)
         except OSError:
             self.socket_is_connected = False
@@ -209,42 +218,42 @@ class Player():
         """
         return self.name
     
-    def process_ping(self, data):
+    def process_ping(self, num):
         """
         Process ping
         """
-        num = data[2]
-        self.thread.send_data((bytes((num+1,))))
+        # Send a pong to the client
+        data = b"C" + bytes((SPongCommands.PONG.value, )) + bytes((num, ))
+        self.thread.send_data(data)
     
     def process_change_name(self, data):
         """
         Change player's name
         """
         if data[-1] != 0:
-            self.thread.send_data((bytes((1,)))) # Error
+            self.thread.send_data((bytes((SPongCommands.BAD_FORMAT.value, )))) # Error
             return
 
         name = data[2:-1].decode()
         print(f"Player '{self.name}' changed its name to '{name}'")
         self.name = name
-        self.thread.send_data((bytes((0,)))) # OK
 
-    def process_text_message(self, data):
+    def process_debug_text_message(self, data):
         """
-        Process a text message received from the client
+        Process a debug text message received from the client
         """
         if data[-1] != 0:
-            self.thread.send_data((bytes((1,)))) # Error
+            self.thread.send_data((bytes((SPongCommands.BAD_FORMAT.value, )))) # Error
             return
 
         text = data[2:-1].decode()
         print(f"Message from player '{self.name}': '{text}'")
 
-    def text_message_to_client(self, text):
+    def text_debug_message_to_client(self, text):
         """
         Send a text message to the client
         """
-        data = b"C" + bytes((12,)) + bytes(text, encoding="utf8") + b'\x00'
+        data = b"C" + bytes((SPongCommands.DEBUG_TEXT_MESSAGE.value, )) + bytes(text, encoding="utf8") + b'\x00'
         self.thread.send_data(data)
         
     def data_received(self, data):
@@ -253,20 +262,21 @@ class Player():
         # Is it a command (it begins with byte 'C')
         if data[0] == ord(b'C'):
             command = data[1]
-            if command == 1: # Ping
+            if command == SPongCommands.PING.value:
                 print("Ping")
-                self.process_ping(data)
-            elif command == 2: # Change name
-                print("Change name")
+                num = data[2]
+                self.process_ping(num)
+            elif command == SPongCommands.PONG.value:
+                print("Pong from client")
+                pass
+            elif command == SPongCommands.PLAYER_RENAME.value:
+                print("Change player's name")
                 self.process_change_name(data)
-            elif command == 12: # Free text message
+            elif command == SPongCommands.DEBUG_TEXT_MESSAGE.value:
                 print("Text message")
-                self.process_text_message(data)
+                self.process_debug_text_message(data)
             else:
-                print(f"Command not implement: {command}")
-        else:
-            # Echo
-            self.thread.send_data(data)
+                raise NotImplementedError(f"Command not implement: {command}")
         
         # Close the connection with control-C in telnet.
         # This is just for debugging, and not at all a clean closing!
@@ -278,6 +288,7 @@ class Player():
 
 g_lock = threading.Lock()
 
+# Players' queue
 players = []
 
 def add_new_player(name, thread, players):
@@ -325,7 +336,7 @@ def new_connection_handler(thread, players):
     player = add_new_player(name, thread, players)
     
     # Send a free text message to the client
-    player.text_message_to_client(f"Hi there, {player.name}!")
+    player.text_debug_message_to_client(f"Hi there, {player.name}!")
 
 
 print("Welcome to the Sotano Pong server!")
