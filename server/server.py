@@ -54,6 +54,18 @@ class connectionThread(threading.Thread):
             self.conn.close()
         print("FINISH connectionThread")
         self.must_finish = True
+        
+    def receive_ASCIIZ(self):
+        """
+        Receive an ASCIIZ string
+        """
+        b = self.conn.recv(1)
+        res = bytes()
+        while b != b'\x00':
+            res += b
+            b = self.conn.recv(1)
+        return res
+
 
     def run(self):
         """
@@ -65,17 +77,46 @@ class connectionThread(threading.Thread):
         
         while not self.must_finish and self.socket_is_connected:
             try:
-                # We use select to avoid that the thread get blocked in
-                # recv when we ask to finish.
+                # We use select to avoid that the thread gets blocked in
+                # recv when we request to finish.
                 readable, _, _ = select.select((self.conn,), (), (), 1)
                 if readable:
-                    data = self.conn.recv(1024)
-                    if not data:
+                    b = self.conn.recv(1)
+                    if not b:
                         self.socket_is_connected = False
-                        break                
+                        break
+                    
+                    # We need to decode the command here, because
+                    # we could get blocked
+
+                    # It is a command if it begins with the byte 'C'
+                    if b != b'C':
+                        raise ValueError(f"Data from client does not begin with a 'C' byte: {b}");
+
+                    buf = bytearray()
+
+                    command = int.from_bytes(self.conn.recv(1))                    
+                    if command == SPongCommands.PING.value:
+                        print("Ping")
+                        buf += self.conn.recv(1) # the number
+                    elif command == SPongCommands.PONG.value:
+                        print("Pong")
+                        buf += self.conn.recv(1) # the number
+                    elif command == SPongCommands.PLAYER_RENAME.value:
+                        print("Change player's name")
+                        name = self.receive_ASCIIZ()
+                        buf += name
+                    elif command == SPongCommands.DEBUG_TEXT_MESSAGE.value:
+                        print("Text message")
+                        string = self.receive_ASCIIZ()
+                        buf += string
+                    else:
+                        # In production it's better to simply ignore
+                        raise NotImplementedError(f"Command not implemented: {command}")
+                    
                     # Fire notification event
                     if self.on_data_available_handler:
-                        self.on_data_available_handler(data)
+                        self.on_data_available_handler(command, buf)
             except OSError:
                 self.socket_is_connected = False
                 
@@ -218,36 +259,30 @@ class Player():
         """
         return self.name
     
-    def process_ping(self, num):
+    def process_ping(self, buf):
         """
         Process ping
         """
+        num = buf[0]
+        
         # Send a pong to the client
         data = b"C" + bytes((SPongCommands.PONG.value, )) + bytes((num, ))
         self.thread.send_data(data)
     
-    def process_change_name(self, data):
+    def process_change_name(self, buf):
         """
         Change player's name
-        """
-        if data[-1] != 0:
-            self.thread.send_data((bytes((SPongCommands.BAD_FORMAT.value, )))) # Error
-            return
-
-        name = data[2:-1].decode()
+        """     
+        name = buf.decode()
         print(f"Player '{self.name}' changed its name to '{name}'")
         self.name = name
 
-    def process_debug_text_message(self, data):
+    def process_debug_text_message(self, buf):
         """
         Process a debug text message received from the client
         """
-        if data[-1] != 0:
-            self.thread.send_data((bytes((SPongCommands.BAD_FORMAT.value, )))) # Error
-            return
-
-        text = data[2:-1].decode()
-        print(f"Message from player '{self.name}': '{text}'")
+        string = buf.decode()
+        print(f"Debug message from player '{self.name}': '{string}'")
 
     def text_debug_message_to_client(self, text):
         """
@@ -256,32 +291,27 @@ class Player():
         data = b"C" + bytes((SPongCommands.DEBUG_TEXT_MESSAGE.value, )) + bytes(text, encoding="utf8") + b'\x00'
         self.thread.send_data(data)
         
-    def data_received(self, data):
-        print(f"Player data_received: {data}")
+    def data_received(self, command, buf):
+        print(f"Player command {command} received, buf={buf}")
         
-        # Is it a command (it begins with byte 'C')
-        if data[0] == ord(b'C'):
-            command = data[1]
-            if command == SPongCommands.PING.value:
-                print("Ping")
-                num = data[2]
-                self.process_ping(num)
-            elif command == SPongCommands.PONG.value:
-                print("Pong from client")
-                pass
-            elif command == SPongCommands.PLAYER_RENAME.value:
-                print("Change player's name")
-                self.process_change_name(data)
-            elif command == SPongCommands.DEBUG_TEXT_MESSAGE.value:
-                print("Text message")
-                self.process_debug_text_message(data)
-            else:
-                raise NotImplementedError(f"Command not implement: {command}")
+        if command == SPongCommands.PING.value:
+            print("Ping")
+            self.process_ping(buf)
+        elif command == SPongCommands.PONG.value:
+            print("Pong")
+        elif command == SPongCommands.PLAYER_RENAME.value:
+            print("Change player's name")
+            self.process_change_name(buf)
+        elif command == SPongCommands.DEBUG_TEXT_MESSAGE.value:
+            print("Text message")
+            self.process_debug_text_message(buf)
+        else:
+            raise NotImplementedError(f"Command not implement: {command}")
         
         # Close the connection with control-C in telnet.
         # This is just for debugging, and not at all a clean closing!
-        if data == b'\xff\xfb\x06':
-            self.thread.conn.close()
+        #if data == b'\xff\xfb\x06':
+        #    self.thread.conn.close()
 
 
 ###################################################

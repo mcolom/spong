@@ -20,6 +20,7 @@ import socket
 import time
 import random
 import os
+import threading
 import sys
 
 import pygame
@@ -146,7 +147,6 @@ class PaddleLeft(Paddle):
             self.rect.top = 0
             
 
-
 def connect_to_server(SERVER, PORT):
     """
     Connect to the server
@@ -166,7 +166,53 @@ def connect_to_server(SERVER, PORT):
         raise ConnectionRefusedError
     return conn, PORT
 
+
+class connectionThread(threading.Thread):
+    """
+    An established-connection thread
+    """
+    def __init__(self, conn, on_data_available_handler=None):
+        #print(f"New thread with conn={conn}, addr={addr}, on_data_available_handler={on_data_available_handler}")
+        threading.Thread.__init__(self)
+        self.conn = conn
+        self.on_data_available_handler = on_data_available_handler
+        self.socket_is_connected = True
+        self.must_finish = False
     
+    def finish(self):
+        """
+        Notify the thread that it needs to finish
+        """
+        if self.conn:
+            self.conn.close()
+        print("FINISH connectionThread")
+        self.must_finish = True
+    
+    def run(self):
+        """
+        Thread loop, until the connection is closed or asked to finish.
+        It blocks until new data is available to read and notifies with an event.
+        """
+        #print (f"Starting {self}, conn={self.conn}, addr={self.addr}, on_data_available_handler={self.on_data_available_handler}")
+        #print(f"Thread {self} run, connected by {self.addr}")
+        
+        while not self.must_finish and self.socket_is_connected:
+            try:
+                # We use select to avoid that the thread get blocked in
+                # recv when we ask to finish.
+                readable, _, _ = select.select((self.conn,), (), (), 1)
+                if readable:
+                    data = self.conn.recv(1024)
+                    if not data:
+                        self.socket_is_connected = False
+                        break                
+                    # Fire notification event
+                    if self.on_data_available_handler:
+                        self.on_data_available_handler(data)
+            except OSError:
+                self.socket_is_connected = False
+
+
 ##############################################
 
 SERVER = "localhost"
@@ -185,6 +231,11 @@ except ConnectionRefusedError:
     sys.exit(0)
 
 print(f"Connected to the server {SERVER}:{PORT}")
+
+# Create the execution thread
+
+
+
     
 # Send a ping
 data = b"C" + bytes((SPongCommands.PING.value, )) +b'\xAB'
@@ -203,9 +254,9 @@ conn.send(data)
 try:
     ans = conn.recv(1024)
     while ans != b'': # loop until connection closed
-        # Receive the answers
-        ans = conn.recv(1024)
         print(f"Answer: {ans}")
+        # Receive more answers
+        ans = conn.recv(1024)
 except ConnectionResetError:
     pass
 
